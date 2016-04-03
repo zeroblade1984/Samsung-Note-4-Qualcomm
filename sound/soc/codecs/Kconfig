@@ -602,3 +602,10 @@ config SND_SOC_MSM_HDMI_CODEC_RX
         supports hdmi panel.
         
 source "sound/soc/codecs/dbmd2/Kconfig"
+
+# Kairi
+config SND_SOC_WCD9330_CONTROL
+        bool "Tomtom Audio Codec Control"
+	default y if SND_SOC_WCD9330=y
+	help
+	 Simple Tomtom codec control interface.

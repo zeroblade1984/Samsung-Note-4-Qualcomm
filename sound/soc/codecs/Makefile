@@ -277,3 +277,6 @@ obj-$(CONFIG_SND_SOC_ES_515)	+= audience/
 obj-$(CONFIG_SND_SOC_ES705)	+= audience/
 #DBMD2
 obj-$(CONFIG_SND_DSPG_DBMD2)	+= dbmd2/
+
+# Kairi
+obj-$(CONFIG_SND_SOC_WCD9330_CONTROL)	+= wcd9330_control.o

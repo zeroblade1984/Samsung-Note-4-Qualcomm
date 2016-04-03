@@ -52,7 +52,9 @@
 extern unsigned int system_rev;
 #endif
 
-
+#ifdef CONFIG_SND_SOC_WCD9330_CONTROL
+#include "wcd9330_control.h"
+#endif
 
 #if defined(CONFIG_SND_SOC_ES705)
 #define CONFIG_SND_SOC_ESXXX
@@ -3814,6 +3816,15 @@ static int tomtom_hph_pa_event(struct snd_soc_dapm_widget *w,
 						 WCD9XXX_CLSH_REQ_ENABLE,
 						 WCD9XXX_CLSH_EVENT_POST_PA);
 		}
+
+#ifdef CONFIG_SND_SOC_WCD9330_CONTROL
+		hp_toggle = true;
+
+		if (hp_digigain_con) {
+			tomtom_write(codec, TOMTOM_A_CDC_RX1_VOL_CTL_B2_CTL, hp_digigain);
+			tomtom_write(codec, TOMTOM_A_CDC_RX2_VOL_CTL_B2_CTL, hp_digigain);
+		}
+#endif
 		break;
 
 	case SND_SOC_DAPM_POST_PMD:
@@ -3835,6 +3846,9 @@ static int tomtom_hph_pa_event(struct snd_soc_dapm_widget *w,
 						WCD9XXX_CLSAB_REQ_DISABLE);
 		}
 
+#ifdef CONFIG_SND_SOC_WCD9330_CONTROL
+		hp_toggle = false;
+#endif
 		break;
 	}
 	return 0;
@@ -4765,7 +4779,10 @@ static int tomtom_volatile(struct snd_soc_codec *ssc, unsigned int reg)
 	return 0;
 }
 
-static int tomtom_write(struct snd_soc_codec *codec, unsigned int reg,
+#ifndef CONFIG_SND_SOC_WCD9330_CONTROL
+static
+#endif
+int tomtom_write(struct snd_soc_codec *codec, unsigned int reg,
 	unsigned int value)
 {
 	int ret;
@@ -4785,7 +4802,11 @@ static int tomtom_write(struct snd_soc_codec *codec, unsigned int reg,
 
 	return wcd9xxx_reg_write(&wcd9xxx->core_res, reg, value);
 }
-static unsigned int tomtom_read(struct snd_soc_codec *codec,
+
+#ifndef CONFIG_SND_SOC_WCD9330_CONTROL
+static
+#endif
+unsigned int tomtom_read(struct snd_soc_codec *codec,
 				unsigned int reg)
 {
 	unsigned int val;
@@ -8108,6 +8129,9 @@ static int tomtom_codec_probe(struct snd_soc_codec *codec)
 	}
 #endif
 	tomtom->codec = codec;
+#ifdef CONFIG_SND_SOC_WCD9330_CONTROL
+	wcd9330_codec = codec;
+#endif
 	for (i = 0; i < COMPANDER_MAX; i++) {
 		tomtom->comp_enabled[i] = 0;
 		tomtom->comp_fs[i] = COMPANDER_FS_48KHZ;
