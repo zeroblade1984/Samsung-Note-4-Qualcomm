@@ -99,7 +99,13 @@ static struct mdss_panel_intf pan_types[] = {
 	{"edp", MDSS_PANEL_INTF_EDP},
 	{"hdmi", MDSS_PANEL_INTF_HDMI},
 };
+
+#ifdef CONFIG_VZW_BOOTLOADER_HACK
+#define TR_PANEL "1:dsi:0:ss_dsi_panel_S6E3HA2_AMS567DJ01_WQHD_0:1:ss_dsi_panel_S6E3HA2_AMS567DJ01_WQHD_1"
+char mdss_mdp_panel[MDSS_MAX_PANEL_LEN] = TR_PANEL;
+#else
 char mdss_mdp_panel[MDSS_MAX_PANEL_LEN];
+#endif
 
 struct mdss_iommu_map_type mdss_iommu_map[MDSS_IOMMU_MAX_DOMAIN] = {
 	[MDSS_IOMMU_DOMAIN_UNSECURE] = {

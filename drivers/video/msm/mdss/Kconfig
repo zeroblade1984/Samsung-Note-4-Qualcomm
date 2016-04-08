@@ -136,3 +136,9 @@ config FB_MSM_MDSS_KCAL_CTRL
 	---help---
 	  Enable sysfs for post-processing control of mdss-mdp5 display
 	  controllers in MDSS.
+
+config VZW_BOOTLOADER_HACK
+	bool "Hack for KK VZW Bootloader"
+	default n
+	---help---
+	  Enable Hack to fix Brightness control for VZW Variant of Qualcomm Note 4
