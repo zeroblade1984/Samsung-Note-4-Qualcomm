@@ -16,6 +16,11 @@
 #include <linux/of_gpio.h>
 #include <linux/battery/sec_charging_common.h>
 
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_USB30_MENU
+extern u8	usb30en;
+#endif
+extern void set_ncm_ready(bool ready);
+
 struct gadget_notify_dev {
 	struct device	*dev;
 	int	gadget_state;
@@ -89,10 +94,6 @@ static struct usb_notifier_platform_data *of_get_usb_notifier_pdata(void)
 	return pdata;
 }
 
-static void check_usb_vbus_state(unsigned long state)
-{
-}
-
 static void usbgadget_ready(struct work_struct *work)
 {
 	struct usb_notifier_platform_data *pdata = of_get_usb_notifier_pdata();
@@ -120,21 +121,40 @@ static int otg_accessory_power(bool enable)
 	return 0;
 }
 
-static int qcom_set_peripheral(int enable)
+static void sec_usb_work(int usb_mode)
+{
+	struct power_supply *psy;
+
+	psy = power_supply_get_by_name("dwc-usb");
+	pr_info("usb: dwc3 power supply set(%d)", usb_mode);
+	if (psy)
+		power_supply_set_present(psy, usb_mode);
+	else
+		pr_err("usb: dwc-usb power supply is null!\n");
+}
+
+static int qcom_set_peripheral(bool enable)
 {
 	struct otg_notify *o_notify;
 	struct usb_notifier_platform_data *pdata;
 	o_notify = get_otg_notify();
 	pdata = get_notify_data(o_notify);
 
+	pr_info("%s: usb enable %d\n", __func__, enable);
+
 	if (!enable) {
 		pdata->g_ndev.gadget_state = GADGET_NOTIFIER_DETACH;
-		check_usb_vbus_state(pdata->g_ndev.gadget_state);
+
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_USB30_MENU
+		usb30en = 0;
+#endif
+		sec_usb_work(0);
+		set_ncm_ready(false);
+
 	} else {
 		pdata->g_ndev.gadget_state = GADGET_NOTIFIER_ATTACH;
-		check_usb_vbus_state(pdata->g_ndev.gadget_state);
+		sec_usb_work(1);
 	}
-
 	return 0;
 }
 
@@ -165,7 +185,9 @@ static struct otg_notify sec_otg_notify = {
 	.set_peripheral	= qcom_set_peripheral,
 	.vbus_detect_gpio = -1,
 	.is_wakelock = 1,
+	.device_check_sec = 3,
 	.set_battcall = set_online,
+	.disable_control = 1,
 };
 
 static int usb_notifier_probe(struct platform_device *pdev)

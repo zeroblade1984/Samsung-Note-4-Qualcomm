@@ -3943,6 +3943,7 @@ static struct snd_soc_dai_link apq8084_maxim_quat_mi2s_be_dai_links[] = {
 		.be_id = MSM_BACKEND_DAI_QUATERNARY_MI2S_TX,
 		.be_hw_params_fixup = apq8084_mi2s_be_hw_params_fixup,
 		.ops = &apq8084_mi2s_be_ops,
+		.ignore_suspend = 1,
 	},
 };
 #endif

@@ -1,20 +1,3 @@
-#
-# Immersion TouchSense Player driver configuration
-#
-menuconfig VIBETONZ
-	tristate "Vibetonz"
-	default y
-	help
-	Say Y to enable Vibetonz support.
-	-------------
-	-------------
-	-------------
-
-config TACTILE_ASSIST
-	tristate "Auto Haptic"
-	default n
-	depends on VIBETONZ
-
 config MOTOR_DRV_MAX77828
 	tristate "Maxim MAX77828 motor"
 	default n
@@ -29,3 +12,10 @@ config MOTOR_DRV_MAX77804K
 	tristate "Maxim MAX77804K motor"
 	default n
 	depends on MFD_MAX77804K
+
+config SS_VIBRATOR
+	tristate "SS_VIBRATOR"
+	default n
+	help
+	  Say Y to enable SAMSUNG VIBRATOR support
+

@@ -36,6 +36,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
@@ -54,6 +55,10 @@
 #include "gadget.h"
 #include "io.h"
 #include "debug.h"
+
+static bool enable_dwc3_u1u2;
+module_param(enable_dwc3_u1u2, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(enable_dwc3_u1u2, "Enable support for U1U2 low power modes");
 
 static void __dwc3_ep0_do_control_status(struct dwc3 *dwc, struct dwc3_ep *dep);
 static void __dwc3_ep0_do_control_data(struct dwc3 *dwc,
@@ -420,6 +425,8 @@ static int dwc3_ep0_handle_feature(struct dwc3 *dwc,
 				return -EINVAL;
 			if (dwc->speed != DWC3_DSTS_SUPERSPEED)
 				return -EINVAL;
+			if (dwc->usb3_u1u2_disable && !enable_dwc3_u1u2)
+				return -EINVAL;
 
 #ifndef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 			reg = dwc3_readl(dwc->regs, DWC3_DCTL);
@@ -435,6 +442,8 @@ static int dwc3_ep0_handle_feature(struct dwc3 *dwc,
 			if (state != USB_STATE_CONFIGURED)
 				return -EINVAL;
 			if (dwc->speed != DWC3_DSTS_SUPERSPEED)
+				return -EINVAL;
+			if (dwc->usb3_u1u2_disable && !enable_dwc3_u1u2)
 				return -EINVAL;
 
 #ifndef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE

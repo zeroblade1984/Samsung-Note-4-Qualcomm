@@ -15,10 +15,6 @@
 #include <linux/power_supply.h>
 #endif
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_USB30_MENU
-extern u8	usb30en;
-#endif
-
 struct dwc3_msm;
 struct dwc3_sec {
 	struct notifier_block nb;
@@ -93,22 +89,10 @@ static struct sec_cable support_cable_list[] = {
 	{ .cable_type = EXTCON_JIG_USBON, },
 	{ .cable_type = EXTCON_CHARGE_DOWNSTREAM, },
 	{ .cable_type = EXTCON_MULTIMEDIADOCK, },
+#if defined(CONFIG_MUIC_SUPPORT_HMT_DETECTION)
+	{ .cable_type = EXTCON_HMT, },
+#endif
 };
-
-
-extern void set_ncm_ready(bool ready);
-
-static void sec_usb_work(int usb_mode)
-{
-	struct power_supply *psy;
-
-	psy = power_supply_get_by_name("dwc-usb");
-	pr_info("usb: dwc3 power supply set(%d)", usb_mode);
-	if (psy)
-		power_supply_set_present(psy, usb_mode);
-	else
-		pr_err("usb: dwc-usb power supply is null!\n");
-}
 
 static void sec_cable_event_worker(struct work_struct *work)
 {
@@ -126,17 +110,7 @@ static void sec_cable_event_worker(struct work_struct *work)
 	case EXTCON_SMARTDOCK_USB:
 	case EXTCON_JIG_USBON:
 	case EXTCON_CHARGE_DOWNSTREAM:
-		if (cable->cable_state) {
-			send_otg_notify(n, NOTIFY_EVENT_VBUS, 1);
-			sec_usb_work(cable->cable_state);
-		} else {
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_USB30_MENU
-			usb30en = 0;
-#endif
-			sec_usb_work(cable->cable_state);
-			set_ncm_ready(false);
-			send_otg_notify(n, NOTIFY_EVENT_VBUS, 0);
-		}
+		send_otg_notify(n, NOTIFY_EVENT_VBUS, cable->cable_state);
 		break;
 	case EXTCON_USB_HOST:
 		if (cable->cable_state) {
@@ -168,6 +142,19 @@ static void sec_cable_event_worker(struct work_struct *work)
 			send_otg_notify(n, NOTIFY_EVENT_MMDOCK, 0);
 		}
 		break;
+#if defined(CONFIG_MUIC_SUPPORT_HMT_DETECTION)
+	case EXTCON_HMT:
+		if (cable->cable_state) {
+			send_otg_notify(n, NOTIFY_EVENT_DRIVE_VBUS, 1);
+			send_otg_notify(n, NOTIFY_EVENT_HMT, 1);
+			sec_handle_event(1);
+		} else {
+			sec_handle_event(0);
+			send_otg_notify(n, NOTIFY_EVENT_HMT, 0);
+			send_otg_notify(n, NOTIFY_EVENT_DRIVE_VBUS, 0);
+		}
+		break;
+#endif
 	case EXTCON_USB_HOST_5V:
 		if (cable->cable_state)
 			send_otg_notify(n, NOTIFY_EVENT_VBUSPOWER, 1);

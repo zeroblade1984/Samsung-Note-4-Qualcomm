@@ -98,10 +98,7 @@ dtb-$(CONFIG_ARCH_MPQ8092) += mpq8092-sim.dtb \
 	mpq8092-dma.dtb
 dtb-$(CONFIG_ARCH_MSMPLUTONIUM) += msmplutonium-sim.dtb
 
-dtb-$(CONFIG_SEC_LENTIS_PROJECT) = apq8084-sec-lentis-r00.dtb \
-	apq8084-sec-lentis-r02.dtb \
-	apq8084-sec-lentis-r03.dtb \
-	apq8084-sec-lentis-r04.dtb \
+dtb-$(CONFIG_SEC_LENTIS_PROJECT) = apq8084-sec-lentis-r04.dtb \
 	apq8084-sec-lentis-r06.dtb \
 	apq8084-sec-lentis-r07.dtb \
 	apq8084-sec-lentis-r08.dtb \

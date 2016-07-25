@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for PCIE
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_pcie.c 571881 2015-07-16 09:49:56Z $
+ * $Id: dhd_pcie.c 607285 2015-12-18 11:18:53Z $
  */
 
 
@@ -296,6 +296,8 @@ dhd_bus_t* dhdpcie_bus_attach(osl_t *osh, volatile char* regs, volatile char* tc
 		bus->dhd->busstate = DHD_BUS_DOWN;
 		bus->db1_for_mb = TRUE;
 		bus->dhd->hang_report  = TRUE;
+
+		bus->d3_ack_war_cnt = 0;
 
 		DHD_TRACE(("%s: EXIT SUCCESS\n",
 			__FUNCTION__));
@@ -1429,6 +1431,7 @@ int dhd_bus_rxctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 #if defined(DHD_DEBUG) && defined(CUSTOMER_HW4)
 		if (bus->dhd->memdump_enabled) {
 			/* write core dump to file */
+			bus->dhd->memdump_type = DUMP_TYPE_RESUMED_ON_TIMEOUT;
 			dhdpcie_mem_dump(bus);
 		}
 #endif /* DHD_DEBUG && CUSTOMER_HW4 */
@@ -1454,7 +1457,7 @@ int dhd_bus_rxctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 	if (bus->dhd->rxcnt_timeout >= MAX_CNTL_RX_TIMEOUT) {
 #ifdef SUPPORT_LINKDOWN_RECOVERY
 #ifdef CONFIG_ARCH_MSM
-		bus->islinkdown = TRUE;
+		bus->no_cfg_restore = TRUE;
 #endif /* CONFIG_ARCH_MSM */
 #endif /* SUPPORT_LINKDOWN_RECOVERY */
 		return -ETIMEDOUT;
@@ -1463,7 +1466,7 @@ int dhd_bus_rxctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 	if (bus->dhd->dongle_trap_occured) {
 #ifdef SUPPORT_LINKDOWN_RECOVERY
 #ifdef CONFIG_ARCH_MSM
-		bus->islinkdown = TRUE;
+		bus->no_cfg_restore = TRUE;
 #endif /* CONFIG_ARCH_MSM */
 #endif /* SUPPORT_LINKDOWN_RECOVERY */
 		return -EREMOTEIO;
@@ -1710,6 +1713,7 @@ dhdpcie_checkdied(dhd_bus_t *bus, char *data, uint size)
 			/* write core dump to file */
 #ifdef CUSTOMER_HW4
 			if (bus->dhd->memdump_enabled) {
+				bus->dhd->memdump_type = DUMP_TYPE_DONGLE_TRAP;
 #endif /* CUSTOMER_HW4 */
 				dhdpcie_mem_dump(bus);
 #ifdef CUSTOMER_HW4
@@ -1752,14 +1756,21 @@ dhdpcie_mem_dump(dhd_bus_t *bus)
 	exynos_pcie_register_dump(1);
 #endif /* CUSTOMER_HW4 && CONFIG_MACH_UNIVERSAL7420 */
 
+#ifdef SUPPORT_LINKDOWN_RECOVERY
+	if (bus->dhd->hang_reason == HANG_REASON_PCIE_LINK_DOWN) {
+		DHD_ERROR(("%s: PCIe link is down so skip\n", __FUNCTION__));
+		return BCME_ERROR;
+	}
+#endif /* SUPPORT_LINKDOWN_RECOVERY */
+
 	/* Get full mem size */
 	size = bus->ramsize;
-#ifdef USE_STATIC_MEMDUMP
+#if defined(CONFIG_DHD_USE_STATIC_BUF) && defined(DHD_USE_STATIC_MEMDUMP)
 	buf = DHD_OS_PREALLOC(bus->dhd, DHD_PREALLOC_MEMDUMP_BUF, size);
 	bzero(buf, size);
 #else
 	buf = MALLOC(bus->dhd->osh, size);
-#endif /* USE_STATIC_MEMDUMP */
+#endif /* CONFIG_DHD_USE_STATIC_BUF && DHD_USE_STATIC_MEMDUMP */
 	if (!buf) {
 		DHD_ERROR(("%s: Out of memory (%d bytes)\n", __FUNCTION__, size));
 		return BCME_ERROR;
@@ -1800,6 +1811,12 @@ int
 dhd_bus_mem_dump(dhd_pub_t *dhdp)
 {
 	dhd_bus_t *bus = dhdp->bus;
+
+	if (bus->suspended) {
+		DHD_ERROR(("%s: Bus is suspend so skip\n", __FUNCTION__));
+		return 0;
+	}
+
 	return dhdpcie_mem_dump(bus);
 }
 #endif /* DHD_DEBUG */
@@ -2781,7 +2798,6 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 				bus->dhd->busstate = DHD_BUS_DOWN;
 			} else {
 				if (bus->intr) {
-					dhdpcie_bus_intr_disable(bus);
 					dhdpcie_free_irq(bus);
 				}
 #ifdef BCMPCIE_OOB_HOST_WAKE
@@ -3441,7 +3457,7 @@ dhdpcie_bus_suspend(struct dhd_bus *bus, bool state)
 		}
 		DHD_GENERAL_UNLOCK(bus->dhd, flags);
 		DHD_OS_WAKE_LOCK_WAIVE(bus->dhd);
-		dhd_os_set_ioctl_resp_timeout(DEFAULT_IOCTL_RESP_TIMEOUT);
+		dhd_os_set_ioctl_resp_timeout(D3_ACK_RESP_TIMEOUT);
 		dhdpcie_send_mb_data(bus, H2D_HOST_D3_INFORM);
 		timeleft = dhd_os_d3ack_wait(bus->dhd, &bus->wait_for_d3_ack, &pending);
 		dhd_os_set_ioctl_resp_timeout(IOCTL_RESP_TIMEOUT);
@@ -3458,12 +3474,29 @@ dhdpcie_bus_suspend(struct dhd_bus *bus, bool state)
 		if (bus->wait_for_d3_ack) {
 			/* Got D3 Ack. Suspend the bus */
 			if (!bus->force_suspend && active) {
-				DHD_ERROR(("Suspend failed because of wakelock\n"));
+				DHD_ERROR(("%s():Suspend failed because of wakelock restoring "
+					"Dongle to D0\n", __FUNCTION__));
 #ifdef DHD_USE_IDLECOUNT
 				if (bus->host_suspend == TRUE) {
 					bus->host_suspend = FALSE;
 				}
 #endif /* DHD_USE_IDLECOUNT */
+				/*
+				 * Dongle still thinks that it has to be in D3 state
+				 * until gets a D0 Inform, but we are backing off from suspend.
+				 * Ensure that Dongle is brought back to D0.
+				 *
+				 * Bringing back Dongle from D3 Ack state to D0 state
+				 * is a 2 step process. Dongle would want to know that D0 Inform
+				 * would be sent as a MB interrupt
+				 * to bring it out of D3 Ack state to D0 state.
+				 * So we have to send both this message.
+				 */
+				DHD_OS_WAKE_LOCK_WAIVE(bus->dhd);
+				dhdpcie_send_mb_data(bus,
+					(H2D_HOST_D0_INFORM_IN_USE | H2D_HOST_D0_INFORM));
+				DHD_OS_WAKE_LOCK_RESTORE(bus->dhd);
+
 				bus->suspended = FALSE;
 				DHD_GENERAL_LOCK(bus->dhd, flags);
 				bus->dhd->busstate = DHD_BUS_DATA;
@@ -3492,6 +3525,7 @@ dhdpcie_bus_suspend(struct dhd_bus *bus, bool state)
 #if defined(DHD_DEBUG) && defined(CUSTOMER_HW4)
 			if (bus->dhd->memdump_enabled) {
 				/* write core dump to file */
+				bus->dhd->memdump_type = DUMP_TYPE_D3_ACK_TIMEOUT;
 				dhdpcie_mem_dump(bus);
 			}
 #endif /* DHD_DEBUG && CUSTOMER_HW4 */
@@ -3509,7 +3543,7 @@ dhdpcie_bus_suspend(struct dhd_bus *bus, bool state)
 					"due to PCIe linkdown\n", __FUNCTION__));
 #ifdef SUPPORT_LINKDOWN_RECOVERY
 #ifdef CONFIG_ARCH_MSM
-				bus->islinkdown = TRUE;
+				bus->no_cfg_restore = TRUE;
 #endif /* CONFIG_ARCH_MSM */
 #endif /* SUPPORT_LINKDOWN_RECOVERY */
 				dhd_os_check_hang(bus->dhd, 0, -ETIMEDOUT);
@@ -3968,6 +4002,7 @@ void dhd_bus_dump(dhd_pub_t *dhdp, struct bcmstrbuf *strbuf)
 	bcm_bprintf(strbuf, "D3 inform cnt %d\n", dhdp->bus->d3_inform_cnt);
 	bcm_bprintf(strbuf, "D0 inform cnt %d\n", dhdp->bus->d0_inform_cnt);
 	bcm_bprintf(strbuf, "D0 inform in use cnt %d\n", dhdp->bus->d0_inform_in_use_cnt);
+	bcm_bprintf(strbuf, "D3 Ack WAR cnt %d\n", dhdp->bus->d3_ack_war_cnt);
 }
 
 static void
@@ -4571,6 +4606,9 @@ int dhd_bus_init(dhd_pub_t *dhdp, bool enforce_mutex)
 	init_waitqueue_head(&bus->rpm_queue);
 	mutex_init(&bus->pm_lock);
 #endif /* DHD_USE_IDLECOUNT */
+
+	bus->d3_ack_war_cnt = 0;
+
 	return ret;
 
 }

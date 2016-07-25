@@ -4,7 +4,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_msgbuf.c 572579 2015-07-20 08:48:47Z $
+ * $Id: dhd_msgbuf.c 601802 2015-11-24 07:05:07Z $
  */
 #include <typedefs.h>
 #include <osl.h>
@@ -317,11 +317,12 @@ dhd_prot_d2h_sync_livelock(dhd_pub_t *dhd, uint32 seqnum, uint32 tries,
 		dhd, seqnum, seqnum% D2H_EPOCH_MODULO, tries,
 		dhd->prot->d2h_sync_wait_max, dhd->prot->d2h_sync_wait_tot));
 	prhex("D2H MsgBuf Failure", (uchar *)msg, msglen);
-#if defined(SUPPORT_LINKDOWN_RECOVERY)
-#if defined(CONFIG_ARCH_MSM)
-	dhd->bus->islinkdown = TRUE;
+#ifdef SUPPORT_LINKDOWN_RECOVERY
+#ifdef CONFIG_ARCH_MSM
+	dhd->bus->no_cfg_restore = TRUE;
 #endif /* CONFIG_ARCH_MSM */
-	dhd_os_check_hang(dhd, 0, -ETIMEDOUT);
+	dhd->hang_reason = HANG_REASON_MSGBUF_LIVELOCK;
+	dhd_os_send_hang_message(dhd);
 #endif /* SUPPORT_LINKDOWN_RECOVERY */
 }
 

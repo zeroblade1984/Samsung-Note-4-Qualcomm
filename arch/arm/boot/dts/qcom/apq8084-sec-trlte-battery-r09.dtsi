@@ -52,7 +52,7 @@
 		battery,temp_check_type = <2>; /* BATTERY_TEMP_CHECK_TEMP */
 		battery,temp_check_count = <1>;
 		battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
-		battery,full_check_type_2nd = <3>; /* SEC_BATTERY_FULLCHARGED_TIME */
+		battery,full_check_type_2nd = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
 		battery,full_check_count = <1>;
 		battery,chg_gpio_full_check = <0>;
 		battery,chg_polarity_full_check = <1>;
@@ -80,11 +80,12 @@
 			battery,chg_float_voltage = <4400>;
 			battery,ovp_uvlo_check_type = <3>; /* SEC_BATTERY_OVP_UVLO_CHGPOLLING */
 			battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
+			battery,full_check_type_2nd = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
 
 			battery,input_current_limit = <1800 460 460 1800 460 900 1000 460 460 1000 820 1800 1800 460 1300 300 700 1300 1500 300 80 900 1500 1000 1000 1667 1667 1667 1400>;
 			battery,fast_charging_current = <2100 0 460 2100 460 1200 1000 460 0 1200 1000 2100 2100 0 1300 300 700 1300 1500 300 80 1200 1500 1000 1000 3150 1000 3150 1400>;
 			battery,full_check_current_1st = <350 0 350 350 350 350 350 350 0 350 350 350 350 0 350 350 350 350 350 350 350 350 350 350 350 350 350 350 350>;
-			battery,full_check_current_2nd = <3000 0 3000 3000 3000 3000 3000 3000 0 3000 3000 3000 3000 0 3000 3000 3000 3000 3000 3000 3000 3000 3000 3000 3000 3000 3000 3000 3000>;
+			battery,full_check_current_2nd = <200 0 200 200 200 200 200 200 0 200 200 200 200 0 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200>;
 		};
 
 		max77843-fuelgauge {

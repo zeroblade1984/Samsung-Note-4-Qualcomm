@@ -374,6 +374,7 @@ struct panel_func {
 	void (*mdss_samsung_event_frame_update)(struct mdss_panel_data *pdata, int event, void *arg);
 	void (*mdss_samsung_event_fb_event_callback)(struct mdss_panel_data *pdata, int event, void *arg);
 	void (*mdss_samsung_event_osc_te_fitting)(struct mdss_panel_data *pdata, int event, void *arg);
+	void (*mdss_samsung_event_esd_recovery_init)(struct mdss_panel_data *pdata);
 
 	/* OSC Tuning */
 	int (*samsung_osc_te_fitting)(struct mdss_dsi_ctrl_pdata *ctrl);
@@ -564,7 +565,6 @@ extern void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 extern struct dsi_status_data *pstatus_data;
 
 u8 alpm_status_func(u8 flag);
-
 
 /* HMT FUNCTION */
 int hmt_bright_update(struct mdss_dsi_ctrl_pdata *ctrl);

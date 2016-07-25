@@ -1,4 +1,17 @@
 /*
+ * Copyright (c) 2013 TRUSTONIC LIMITED
+ * All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ */
+/*
  * MobiCore Driver Kernel Module.
  *
  * This module is written as a Linux device driver.
@@ -9,13 +22,6 @@
  * the interface from the secure world to the normal world.
  * The access to the driver is possible with a file descriptor,
  * which has to be created by the fd = open(/dev/mobicore) command.
- *
- * <-- Copyright Giesecke & Devrient GmbH 2009-2012 -->
- * <-- Copyright Trustonic Limited 2013 -->
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 #include "main.h"
 #include "debug.h"
@@ -203,6 +209,27 @@ free_store:
 	free_page(store);
 	return ret;
 }
+
+/* Get a unique handle */
+static uint32_t get_new_table_handle(void)
+{
+	uint32_t handle;
+	struct mc_mmu_table *table;
+	/* assumption mem_ctx.table_lock mutex is locked */
+retry:
+	handle = atomic_inc_return(&mem_ctx.table_counter);
+	if (handle == 0) {
+		atomic_set(&mem_ctx.table_counter, 1);
+		handle = 1;
+	}
+	list_for_each_entry(table, &mem_ctx.mmu_tables, list) {
+		if (table->handle == handle)
+			goto retry;
+	}
+
+	return handle;
+}
+
 /*
  * Get a MMU table from the free tables list or allocate a new one and
  * initialize it. Assumes the table_lock is already taken.
@@ -236,7 +263,7 @@ static struct mc_mmu_table *alloc_mmu_table(struct mc_instance *instance)
 	/* Move it to the used MMU tables list */
 	list_move_tail(&table->list, &mem_ctx.mmu_tables);
 
-	table->handle = get_new_buffer_handle();
+	table->handle = get_new_table_handle();
 	table->owner = instance;
 
 	atomic_inc(&table->set->used_tables);
@@ -320,7 +347,7 @@ static int map_buffer(struct task_struct *task, void *wsm_buffer,
 	void		*virt_addr_page;
 	struct page	*page;
 	struct mmutable	*mmutable;
-	struct page	**mmutable_as_array_of_pointers_to_page;
+	struct page	**mmutable_as_array_of_pointers_to_page = NULL;
 	/* page offset in wsm buffer */
 	unsigned int offset;
 
@@ -357,12 +384,21 @@ static int map_buffer(struct task_struct *task, void *wsm_buffer,
 	}
 
 	mmutable = table->virt;
+#if (defined LPAE_SUPPORT) || !(defined CONFIG_ARM64)
 	/*
 	 * We use the memory for the MMU table to hold the pointer
 	 * and convert them later. This works, as everything comes
 	 * down to a 32 bit value.
 	 */
 	mmutable_as_array_of_pointers_to_page = (struct page **)mmutable;
+#else
+	mmutable_as_array_of_pointers_to_page = kmalloc(
+		sizeof(struct page *)*nr_of_pages, GFP_KERNEL | __GFP_ZERO);
+	if (mmutable_as_array_of_pointers_to_page == NULL) {
+		ret = -ENOMEM;
+		goto map_buffer_end;
+	}
+#endif
 
 	/* Request comes from user space */
 	if (task != NULL && !is_vmalloc_addr(wsm_buffer)) {
@@ -380,7 +416,7 @@ static int map_buffer(struct task_struct *task, void *wsm_buffer,
 				 mmutable_as_array_of_pointers_to_page);
 		if (ret != 0) {
 			MCDRV_DBG_ERROR(mcd, "lock_user_pages() failed");
-			return ret;
+			goto map_buffer_end;
 		}
 	}
 	/* Request comes from kernel space(cont buffer) */
@@ -435,6 +471,10 @@ static int map_buffer(struct task_struct *task, void *wsm_buffer,
 #endif
 			page = mmutable_as_array_of_pointers_to_page[i];
 
+			if (!page) {
+				MCDRV_DBG_ERROR(mcd, "page address is null");
+				return -EFAULT;
+			}
 			/*
 			 * create MMU table entry, see ARM MMU docu for details
 			 * about flags stored in the lowest 12 bits.
@@ -474,14 +514,18 @@ static int map_buffer(struct task_struct *task, void *wsm_buffer,
 #endif /* CONFIG_SMP */
 
 			mmutable->table_entries[i] = pte;
-			MCDRV_DBG_VERBOSE(mcd, "MMU entry %d:  0x%llx", i,
-					  (u64)(pte));
+			MCDRV_DBG_VERBOSE(mcd, "MMU entry %d:  0x%llx, virt %p",
+					  i, (u64)(pte), page);
 		} else {
 			/* ensure rest of table is empty */
 			mmutable->table_entries[i] = 0;
 		}
 	} while (i-- != 0);
 
+map_buffer_end:
+#if !(defined LPAE_SUPPORT) && (defined CONFIG_ARM64)
+	kfree(mmutable_as_array_of_pointers_to_page);
+#endif
 	return ret;
 }
 
@@ -499,8 +543,8 @@ static void unmap_buffers(struct mc_mmu_table *table)
 
 	/* found the table, now release the resources. */
 	MCDRV_DBG_VERBOSE(mcd,
-			  "clear MMU table, phys_base=0x%llX,nr_of_pages=%d",
-			  (u64)table->phys, table->pages);
+			  "clear table, phys=0x%llX, nr_of_pages=%d, virt=%p",
+			  (u64)table->phys, table->pages, table->virt);
 
 	mmutable = table->virt;
 
@@ -546,8 +590,11 @@ int mc_free_mmu_table(struct mc_instance *instance, uint32_t handle)
 		ret = -EINVAL;
 		goto err_unlock;
 	}
-	if (instance != table->owner && !is_daemon(instance)) {
-		MCDRV_DBG_ERROR(mcd, "instance does no own it");
+	if (instance == table->owner) {
+		/* Prevent double free */
+		table->owner = NULL;
+	} else if (!is_daemon(instance)) {
+		MCDRV_DBG_ERROR(mcd, "instance does not own it");
 		ret = -EPERM;
 		goto err_unlock;
 	}
@@ -663,10 +710,10 @@ void mc_clean_mmu_tables(void)
 	/* Check if some WSM is orphaned. */
 	list_for_each_entry_safe(table, tmp, &mem_ctx.mmu_tables, list) {
 		if (table->owner == NULL) {
-			MCDRV_DBG(mcd,
+			/*MCDRV_DBG(mcd,
 				  "cleariM MMU: p=0x%llX pages=%d",
 				  (u64)table->phys,
-				  table->pages);
+				  table->pages);*/
 			unmap_mmu_table(table);
 		}
 	}
@@ -681,9 +728,9 @@ void mc_clear_mmu_tables(struct mc_instance *instance)
 	/* Check if some WSM is still in use. */
 	list_for_each_entry_safe(table, tmp, &mem_ctx.mmu_tables, list) {
 		if (table->owner == instance) {
-			MCDRV_DBG(mcd, "release WSM MMU: p=0x%llX pages=%d",
+			/*MCDRV_DBG(mcd, "release WSM MMU: p=0x%llX pages=%d",
 				  (u64)table->phys,
-				  table->pages);
+				  table->pages);*/
 			/* unlock app usage and free or mark it as orphan */
 			table->owner = NULL;
 			unmap_mmu_table(table);
@@ -704,6 +751,7 @@ int mc_init_mmu_tables(void)
 	INIT_LIST_HEAD(&mem_ctx.free_mmu_tables);
 
 	mutex_init(&mem_ctx.table_lock);
+	atomic_set(&mem_ctx.table_counter, 1);
 
 	return 0;
 }

@@ -62,8 +62,8 @@ static void max77843_haptic_i2c(struct max77843_haptic_data *hap_data, bool en)
 
 }
 
-#ifdef CONFIG_VIBETONZ
-void max77843_vibtonz_en(bool en)
+#ifdef CONFIG_SS_VIBRATOR
+void max77843_vibrator_en(bool en)
 {
 	if (max77843_g_hap_data == NULL) {
 		return ;
@@ -85,7 +85,7 @@ void max77843_vibtonz_en(bool en)
 		max77843_g_hap_data->running = false;
 	}
 }
-EXPORT_SYMBOL(max77843_vibtonz_en);
+EXPORT_SYMBOL(max77843_vibrator_en);
 #endif
 
 static int max77843_haptic_probe(struct platform_device *pdev)
@@ -95,7 +95,7 @@ static int max77843_haptic_probe(struct platform_device *pdev)
 	struct max77843_platform_data *max77843_pdata
 		= dev_get_platdata(max77843->dev);
 
-#ifdef CONFIG_VIBETONZ
+#ifdef CONFIG_SS_VIBRATOR
 	struct max77843_haptic_platform_data *pdata
 		= max77843_pdata->haptic_data;
 #endif

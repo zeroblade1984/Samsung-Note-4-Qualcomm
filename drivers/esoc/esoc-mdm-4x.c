@@ -636,7 +636,7 @@ static irqreturn_t mdm_pblrdy_change(int irq, void *dev_id)
 	dev = mdm->dev;
 	dev_info(dev, "pbl ready %d:\n",
 			gpio_get_value(MDM_GPIO(mdm, MDM2AP_PBLRDY)));
-	if (mdm->init) {
+	if (mdm->init && gpio_get_value(MDM_GPIO(mdm, MDM2AP_PBLRDY))) {
 		mdm->init = 0;
 		dev_err(dev, "Signaling request engine for images\n");
 		esoc_clink_queue_request(ESOC_REQ_IMG, esoc);

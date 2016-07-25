@@ -868,6 +868,7 @@ static int max17048_fg_get_property(struct power_supply *psy,
 {
 	struct max17048_fuelgauge_data *fuelgauge =
 		container_of(psy, struct max17048_fuelgauge_data, psy_fg);
+	union power_supply_propval value_bat;
 
 	switch (psp) {
 			/* Cell Voltage (VCELL, mV) */
@@ -887,7 +888,12 @@ static int max17048_fg_get_property(struct power_supply *psy,
 			break;
 			/* Current (mA) */
 		case POWER_SUPPLY_PROP_CURRENT_NOW:
-			val->intval = max17048_get_current(fuelgauge->client);
+			psy_do_property("battery", get,
+				POWER_SUPPLY_PROP_STATUS, value_bat);
+			if(value_bat.intval == POWER_SUPPLY_STATUS_DISCHARGING)
+				val->intval = -max17048_get_current(fuelgauge->client);
+			else
+				val->intval = max17048_get_current(fuelgauge->client);
 			break;
 			/* Average Current (mA) */
 		case POWER_SUPPLY_PROP_CURRENT_AVG:

@@ -639,10 +639,10 @@ early_param("mem", early_mem);
 static int __init msm_hw_rev_setup(char *p)
 {
 	system_rev = memparse(p, NULL);
-	printk("board_rev %x", system_rev);
+	printk("androidboot.revision %x\n", system_rev);
 	return 0;
 }
-early_param("board_rev", msm_hw_rev_setup);
+early_param("androidboot.revision", msm_hw_rev_setup);
 
 static void __init request_standard_resources(struct machine_desc *mdesc)
 {

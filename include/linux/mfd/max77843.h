@@ -56,6 +56,7 @@ enum {
 #if defined(CONFIG_MUIC_SUPPORT_HMT_DETECTION)
 	MAX77843_MUIC_DOCK_HMT = 11,
 #endif
+	MAX77843_MUIC_DOCK_ABNORMAL = 106,
 };
 
 /* MAX77686 regulator IDs */
@@ -83,7 +84,7 @@ struct max77843_charger_platform_data {
 #endif
 };
 
-#ifdef CONFIG_VIBETONZ
+#ifdef CONFIG_SS_VIBRATOR
 #define DIVIDER_32			(0x00)
 #define DIVIDER_64			(0x01)
 #define DIVIDER_128		(DIVIDER_64<<1)
@@ -120,7 +121,7 @@ struct max77843_platform_data {
 	struct max77843_muic_data *muic_data;
 	struct max77843_regulator_data *regulators;
 	int num_regulators;
-#ifdef CONFIG_VIBETONZ
+#ifdef CONFIG_SS_VIBRATOR
 	/* haptic motor data */
 	struct max77843_haptic_platform_data *haptic_data;
 #endif

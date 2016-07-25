@@ -199,7 +199,7 @@ static int nla_put_uid(struct sk_buff *skb, int idx, uid_t uid)
 static int fib_uid_range_match(struct flowi *fl, struct fib_rule *rule)
 {
 	return (!uid_valid(rule->uid_start) && !uid_valid(rule->uid_end)) ||
-		(uid_gte(fl->flowi_uid, rule->uid_start) &&
+	       (uid_gte(fl->flowi_uid, rule->uid_start) &&
 		uid_lte(fl->flowi_uid, rule->uid_end));
 }
 
@@ -398,9 +398,9 @@ static int fib_nl_newrule(struct sk_buff *skb, struct nlmsghdr* nlh)
 			rule->uid_end = fib_nl_uid(tb[FRA_UID_END]);
 		}
 		if (!uid_valid(rule->uid_start) ||
-			!uid_valid(rule->uid_end) ||
-			!uid_lte(rule->uid_start, rule->uid_end))
-			goto errout_free;
+		    !uid_valid(rule->uid_end) ||
+		    !uid_lte(rule->uid_start, rule->uid_end))
+		goto errout_free;
 	}
 
 	err = ops->configure(rule, skb, frh, tb);
@@ -633,6 +633,7 @@ static int fib_nl_fill_rule(struct sk_buff *skb, struct fib_rule *rule,
 		goto nla_put_failure;
 
 	if (uid_valid(rule->uid_start))
+
 		nla_put_uid(skb, FRA_UID_START, rule->uid_start);
 
 	if (uid_valid(rule->uid_end))

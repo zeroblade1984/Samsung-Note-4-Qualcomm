@@ -38,6 +38,11 @@
 #endif
 #include <linux/delay.h>
 #include <linux/extcon.h>
+
+#if defined(CONFIG_MUIC_SUPPORT_HMT_DETECTION)
+#include <linux/usb_notify.h>
+#endif
+
 #define DEV_NAME	"max77843-muic"
 #define POLLING_TIME	1000
 #define	ESCAPE_COUNTER	10
@@ -144,6 +149,10 @@ struct max77843_muic_info {
 	u8		chgtyp;
 	u8		vbvolt;
 	bool			is_adc_open_prev;
+#if defined(CONFIG_MUIC_SUPPORT_HMT_DETECTION)
+	/* USB Notifier */
+	struct notifier_block	usb_nb;
+#endif
 };
 static const char const *max77843_path_name[] = {
 	[MAX77843_PATH_OPEN]	= "OPEN",
@@ -1784,7 +1793,6 @@ static int max77843_muic_handle_attach(struct max77843_muic_info *info,
 			msleep(50);
 #endif
 		new_state = BIT(EXTCON_HMT);
-		new_state |= BIT(EXTCON_USB_HOST);
 		gInfo->cable_name = EXTCON_HMT;
 		break;
 #endif
@@ -2039,6 +2047,17 @@ static void max77843_muic_detect_dev(struct max77843_muic_info *info, int irq)
 	if ((info->adc == ADC_OPEN) && (info->chgtyp == CHGTYP_NO_VOLTAGE))
 		intr = MAX77843_INT_DETACH;
 
+#if defined(CONFIG_MUIC_SUPPORT_HMT_DETECTION)
+	/*
+	  * Accept the expected ADC only to
+	  * keep our code safe from HMT misrecognition.
+	  */
+	if (gInfo->cable_name == EXTCON_HMT) {
+		if ((info->adc != ADC_OPEN) && (info->adc != ADC_HMT))
+			return;
+	}
+#endif
+
 	if (intr == MAX77843_INT_ATTACH) {
 		dev_info(info->dev, "%s: ATTACHED/CHANGED\n", __func__);
 		max77843_muic_handle_attach(info, status[0], status[1], status[2], irq);
@@ -2281,6 +2300,66 @@ void max77843_update_jig_state(struct max77843_muic_info *info)
 	max77843_muic_uart_uevent(jig_state);
 }
 
+#if defined(CONFIG_MUIC_SUPPORT_HMT_DETECTION)
+extern void muic_send_dock_intent(int type);
+
+static int muic_handle_usb_notification(struct notifier_block *nb,
+				unsigned long action, void *data)
+{
+	struct max77843_muic_info *info =
+	    container_of(nb, struct max77843_muic_info, usb_nb);
+
+	switch (action) {
+	/* Abnormal device */
+	case EXTERNAL_NOTIFY_3S_NODEVICE:
+		pr_info("%s: 3S_NODEVICE(USB HOST Connection timeout)\n", __func__);
+		if (info->cable_name == EXTCON_HMT)
+			muic_send_dock_intent(MAX77843_MUIC_DOCK_ABNORMAL);
+		break;
+
+	default:
+		break;
+	}
+
+	return NOTIFY_DONE;
+}
+
+
+static void muic_register_usb_notifier(struct max77843_muic_info *info)
+{
+	int ret = 0;
+
+	pr_info("%s: Registering EXTERNAL_NOTIFY_DEV_MUIC.\n", __func__);
+
+
+	ret = usb_external_notify_register(&info->usb_nb,
+		muic_handle_usb_notification, EXTERNAL_NOTIFY_DEV_MUIC);
+	if (ret < 0) {
+		pr_info("%s: USB Noti. is not ready.\n", __func__);
+		return;
+	}
+
+	pr_info("%s: done.\n", __func__);
+}
+
+static void muic_unregister_usb_notifier(struct max77843_muic_info *info)
+{
+	int ret = 0;
+
+	pr_info("%s\n", __func__);
+
+	ret = usb_external_notify_unregister(&info->usb_nb);
+	if (ret < 0) {
+		pr_info("%s: USB Noti. unregister error.\n", __func__);
+		return;
+	}
+
+	pr_info("%s: done.\n", __func__);
+}
+#else
+static void muic_register_usb_notifier(struct max77843_muic_info *info){}
+static void muic_unregister_usb_notifier(struct max77843_muic_info *info){}
+#endif
 
 static int max77843_muic_probe(struct platform_device *pdev)
 {
@@ -2431,6 +2510,7 @@ static int max77843_muic_probe(struct platform_device *pdev)
 
 	/* init jig state */
 	max77843_update_jig_state(info);
+	muic_register_usb_notifier(info);
 
 	return 0;
 
@@ -2511,6 +2591,8 @@ static int max77843_muic_remove(struct platform_device *pdev)
 		free_irq(info->irq_mpnack, info);
 #endif
 		wake_lock_destroy(&info->muic_wake_lock);
+
+		muic_unregister_usb_notifier(info);
 		mutex_destroy(&info->mutex);
 		kfree(info);
 	}
@@ -2547,6 +2629,7 @@ void max77843_muic_shutdown(struct device *dev)
 		dev_err(info->dev, "%s: fail to update reg\n", __func__);
 		return;
 	}
+	muic_unregister_usb_notifier(info);
 }
 
 static struct platform_driver max77843_muic_driver = {

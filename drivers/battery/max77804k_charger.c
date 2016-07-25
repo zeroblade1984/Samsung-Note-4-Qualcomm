@@ -116,6 +116,9 @@ static enum power_supply_property sec_charger_props[] = {
 #ifdef WPC_CHECK_CVPRM_FEATURE
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 #endif
+#if defined(CONFIG_BATTERY_SWELLING)
+	POWER_SUPPLY_PROP_VOLTAGE_MAX,
+#endif
 };
 static enum power_supply_property max77804k_otg_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
@@ -845,6 +848,13 @@ static int sec_chg_get_property(struct power_supply *psy,
 		val->intval = max77804k_get_charge_votage(charger);
 		break;
 #endif
+#if defined(CONFIG_BATTERY_SWELLING)
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
+		max77804k_read_reg(charger->max77804k->i2c,MAX77804K_CHG_REG_CHG_CNFG_04, &reg_data);
+		val->intval = reg_data;
+		pr_info("%s: Float voltage : 0x%x\n", __func__, val->intval);
+		break;
+#endif
 	default:
 		return -EINVAL;
 	}
@@ -852,6 +862,7 @@ static int sec_chg_get_property(struct power_supply *psy,
 	return 0;
 }
 
+static u8 max77804k_get_float_voltage_data(int float_voltage);
 static int sec_chg_set_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		const union power_supply_propval *val)
@@ -862,6 +873,9 @@ static int sec_chg_set_property(struct power_supply *psy,
 	int set_charging_current, set_charging_current_max;
 	const int usb_charging_current = charger->pdata->charging_current[
 		POWER_SUPPLY_TYPE_USB].fast_charging_current;
+#if defined(CONFIG_BATTERY_SWELLING)
+	u8 reg_data;
+#endif	
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
@@ -969,6 +983,10 @@ static int sec_chg_set_property(struct power_supply *psy,
 	/*  val->intval : charging current */
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
 		charger->charging_current = val->intval;
+#if defined(CONFIG_BATTERY_SWELLING)
+		max77804k_set_charge_current(charger,
+				val->intval);
+#endif
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		max77804k_set_charge_current(charger,
@@ -1048,6 +1066,18 @@ static int sec_chg_set_property(struct power_supply *psy,
 		pr_info("%s: set CNFG_12: 0x%x\n", __func__, cnfg12);
 		break;
 	}
+#endif
+#if defined(CONFIG_BATTERY_SWELLING)
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
+		pr_info("%s: float voltage(%d)\n", __func__, val->intval);
+		reg_data = max77804k_get_float_voltage_data(val->intval);
+		max77804k_update_reg(charger->max77804k->i2c, MAX77804K_CHG_REG_CHG_CNFG_04,
+				(reg_data << MAX77804K_CHG_CNFG_04_CHG_CV_PRM_SHIFT),
+				MAX77804K_CHG_CNFG_04_CHG_CV_PRM_MASK);
+		max77804k_read_reg(charger->max77804k->i2c,
+				MAX77804K_CHG_REG_CHG_CNFG_04, &reg_data);
+		pr_info("%s: Float voltage set to : 0x%x\n", __func__, reg_data);
+		break;
 #endif
 	default:
 		return -EINVAL;

@@ -35,6 +35,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 static void mdss_samsung_event_osc_te_fitting(struct mdss_panel_data *pdata, int event, void *arg);
 static irqreturn_t samsung_te_check_handler(int irq, void *handle);
 static void samsung_te_check_done_work(struct work_struct *work);
+static void mdss_samsung_event_esd_recovery_init(struct mdss_panel_data *pdata);
 struct samsung_display_driver_data vdd_data;
 
 struct dsi_cmd_desc default_cmd = {{DTYPE_DCS_LWRITE, 1, 0, 0, 0, 0}, NULL};
@@ -48,6 +49,9 @@ static char tuning_file[MAX_FILE_NAME];
 u8 csc_update = 1;
 u8 csc_change = 0;
 
+struct mdss_panel_data *pdata_dsi0;
+struct mdss_panel_data *pdata_dsi1;
+struct work_struct esd_irq_work;
 struct samsung_display_driver_data * check_valid_ctrl(struct mdss_dsi_ctrl_pdata *ctrl)
 {
 	struct samsung_display_driver_data *vdd = NULL;
@@ -303,8 +307,6 @@ static int mdss_samsung_dsi_panel_event_handler(
 		case MDSS_SAMSUNG_EVENT_FRAME_UPDATE:
 			if (!IS_ERR_OR_NULL(panel_func->mdss_samsung_event_frame_update))
 				panel_func->mdss_samsung_event_frame_update(pdata, event, arg);
-
-			pdata->panel_info.esd_recovery.is_enabled_esd_recovery = true;
 			break;
 		case MDSS_SAMSUNG_EVENT_FB_EVENT_CALLBACK:
 			if (!IS_ERR_OR_NULL(panel_func->mdss_samsung_event_fb_event_callback))
@@ -381,6 +383,7 @@ void mdss_samsung_panel_init(struct device_node *np,
 
 	mdss_panel_attach_set(ctrl_pdata, true);
 
+	mdss_samsung_event_esd_recovery_init(&ctrl_pdata->panel_data);
 	/* Set init brightness level */
 	vdd_data.init_bl_level = DEFAULT_BRIGHTNESS;
 }
@@ -965,9 +968,6 @@ int mdss_samsung_panel_off_post(struct mdss_panel_data *pdata)
 		return false;
 	}
 
-
-	pdata->panel_info.esd_recovery.is_enabled_esd_recovery = false;
-
 	if (!IS_ERR_OR_NULL(vdd->panel_func.samsung_panel_off_post))
 		vdd->panel_func.samsung_panel_off_post(ctrl);
 
@@ -1100,14 +1100,193 @@ end:
 *
 **************************************************************/
 
-/*
-static int mdss_dsi_esd_irq_status(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
+static int mdss_dsi_esd_irq_status(struct mdss_dsi_ctrl_pdata *ctrl)
 {
 	pr_info("%s: lcd esd recovery\n", __func__);
 
-	return !ctrl_pdata->status_value;
+	return !ctrl->status_value;
 }
-*/
+
+/*
+ * esd_irq_enable() - Enable or disable esd irq.
+ *
+ * @enable	: flag for enable or disabled
+ * @nosync	: flag for disable irq with nosync
+ * @data	: point ot struct mdss_panel_info
+ */
+static void esd_irq_enable(bool enable, bool nosync, void *data)
+{
+	/* The irq will enabled when do the request_threaded_irq() */
+	static bool is_enabled = true;
+	int gpio;
+	unsigned long flags;
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)data;
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data vdd : 0x%zx\n", __func__, (size_t)vdd);
+		return;
+	}
+
+	spin_lock_irqsave(&vdd->esd_recovery.irq_lock, flags);
+	gpio = vdd->esd_recovery.esd_gpio;
+
+	if (enable == is_enabled) {
+		pr_info("%s: ESD irq already %s\n",
+				__func__, enable ? "enabled" : "disabled");
+		goto error;
+	}
+
+	pr_info("%s: esd_irq_enable : %s gpio %d esd_gpio %d\n",
+				__func__, enable ? "enabled" : "disabled", gpio, vdd->esd_recovery.esd_gpio);
+
+	if (enable) {
+		is_enabled = true;
+		enable_irq(gpio_to_irq(vdd->esd_recovery.esd_gpio));
+	} else {
+		if (nosync)
+			disable_irq_nosync(gpio_to_irq(vdd->esd_recovery.esd_gpio));
+		else
+			disable_irq(gpio_to_irq(vdd->esd_recovery.esd_gpio));
+		is_enabled = false;
+	}
+
+	/* TODO: Disable log if the esd function stable */
+	pr_err("%s: ESD irq %s with %s\n",
+				__func__,
+				enable ? "enabled" : "disabled",
+				nosync ? "nosync" : "sync");
+error:
+	spin_unlock_irqrestore(&vdd->esd_recovery.irq_lock, flags);
+
+}
+
+static void esd_irq_work_func(struct work_struct *work)
+{
+	struct samsung_display_driver_data *vdd = samsung_get_vdd();
+	char *envp[2] = {"PANEL_ALIVE=0", NULL};
+
+	struct device *dev = vdd->mfd_dsi[DISPLAY_1]->fbi->dev;
+	struct mdss_panel_data *pdata = &vdd->ctrl_dsi[DISPLAY_1]->panel_data;
+	struct msm_fb_data_type *mfd = vdd->mfd_dsi[DISPLAY_1];
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data vdd : 0x%zx\n", __func__, (size_t)vdd);
+		return ;
+	}
+
+	if (IS_ERR_OR_NULL(vdd) || IS_ERR_OR_NULL(vdd->mfd_dsi[DISPLAY_1])) {
+		pr_err("%s vdd is error", __func__);
+		return ;
+	}
+
+	if (mdss_fb_is_power_on(mfd)) {
+		if (pdata->panel_info.type == MIPI_CMD_PANEL){
+			if(mdss_dsi_sync_wait_enable(vdd->ctrl_dsi[DISPLAY_1])){
+				pdata_dsi0->panel_info.panel_dead = true;
+				pdata_dsi1->panel_info.panel_dead = true;
+				pr_err("%s here 1", __func__);
+			}else{
+
+				pdata->panel_info.panel_dead = true;
+				pr_err("%s here 2", __func__);
+			}
+		}
+
+		kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, envp);
+		pr_err("Panel has gone bad, sending uevent - %s\n", envp[0]);
+	}
+	return;
+}
+
+static irqreturn_t esd_irq_handler(int irq, void *handle)
+{
+	struct samsung_display_driver_data *vdd = samsung_get_vdd();
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data vdd : 0x%zx\n", __func__, (size_t)vdd);
+		return 0;
+	}
+
+	pr_err("++\n");
+
+	if (!vdd->esd_recovery.is_enabled_esd_recovery) {
+		pr_err("esd recovery is not enabled yet");
+		goto end;
+	}
+
+	esd_irq_enable(false, true, (void *)vdd);
+
+	schedule_work(&esd_irq_work);
+
+	pr_info("%s--\n", __func__);
+
+	end:
+
+	return IRQ_HANDLED;
+}
+
+static void mdss_samsung_event_esd_recovery_init(struct mdss_panel_data *pdata)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
+	struct samsung_display_driver_data *vdd = NULL;
+	int ret;
+	struct mdss_panel_info *pinfo;
+
+	if (IS_ERR_OR_NULL(pdata)) {
+		pr_err("%s: Invalid pdata : 0x%zx\n", __func__, (size_t)pdata);
+		return;
+	}
+
+	vdd = (struct samsung_display_driver_data *)pdata->panel_private;
+
+	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata, panel_data);
+
+	pinfo = &ctrl->panel_data.panel_info;
+
+	if (IS_ERR_OR_NULL(ctrl) ||	IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx\n",
+				__func__, (size_t)ctrl, (size_t)vdd);
+		return;
+	}
+
+	if (!pinfo->esd_check_enabled)
+		return;
+
+	pr_info("%s+: ndx=%d esd_gpio(%d)\n", __func__, ctrl->ndx, vdd->esd_recovery.esd_gpio);
+
+	if (!vdd->esd_recovery.esd_recovery_init) {
+		vdd->esd_recovery.esd_recovery_init = true;
+
+		vdd->esd_recovery.esd_irq_enable = esd_irq_enable;
+
+		INIT_WORK(&esd_irq_work, esd_irq_work_func);
+
+		if (ctrl->status_mode == ESD_REG_IRQ) {
+			if (gpio_is_valid(vdd->esd_recovery.esd_gpio)) {
+				gpio_request(vdd->esd_recovery.esd_gpio, "esd_recovery");
+				ret = request_threaded_irq(
+						gpio_to_irq(vdd->esd_recovery.esd_gpio),
+						NULL,
+						esd_irq_handler,
+						vdd->esd_recovery.irqflags,
+						"esd_recovery",
+						(void *)ctrl);
+				if (ret)
+					pr_err("%s : Failed to request_irq, ret=%d\n",
+							__func__, ret);
+				else{
+					esd_irq_enable(false, true, (void *)vdd);
+					pr_info("%s-: esd_irq_enabled\n", __func__);
+				}
+
+			}else
+				pr_info("%s-: gpio is invalid ndx=%d\n", __func__, ctrl->ndx);
+		}
+	}
+
+	pr_info("%s-: ndx=%d\n", __func__, ctrl->ndx);
+}
+
 /*************************************************************
 *
 *		BRIGHTNESS RELATED FUNCTION BELOW.
@@ -1432,7 +1611,7 @@ int mdss_samsung_brightness_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 		return false;
 	}
 
-	if (vdd->auto_brightness == HBM_MODE) {
+	if (vdd->auto_brightness >= HBM_MODE && vdd->bl_level == 255) {
 		cmd_cnt = mdss_samsung_hbm_brightenss_packet_set(ctrl);
 		cmd_cnt > 0 ? vdd->display_ststus_dsi[ctrl->ndx].hbm_mode = true : false;
 	} else {
@@ -2315,7 +2494,7 @@ void mdss_samsung_panel_pbaboot_config(struct device_node *np,
 
 		pinfo->cont_splash_enabled = false;
 
-		//pinfo->esd_check_enabled = false;
+		pinfo->esd_check_enabled = false;
 		ctrl->on_cmds.link_state = DSI_LP_MODE;
 		ctrl->off_cmds.link_state = DSI_LP_MODE;
 
@@ -2330,50 +2509,60 @@ void mdss_samsung_panel_parse_dt_esd(struct device_node *np,
 {
 	int rc = 0;
 	const char *data;
-	struct mdss_panel_info *pinfo;
+
+	struct samsung_display_driver_data *vdd = NULL;
+	struct mdss_panel_info *pinfo = NULL;
 
 	if (!ctrl) {
 		pr_err("%s: ctrl is null\n", __func__);
 		return;
 	}
 
-	pinfo = &ctrl->panel_data.panel_info;
+	vdd = check_valid_ctrl(ctrl);
 
-	if (IS_ERR_OR_NULL(pinfo)) {
-		pr_err("%s: pinfo is null\n", __func__);
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data vdd : 0x%zx\n", __func__, (size_t)vdd);
 		return;
 	}
 
-	pinfo->esd_recovery.esd_gpio = of_get_named_gpio(np, "qcom,esd_irq_gpio", 0);
+	pinfo = &ctrl->panel_data.panel_info;
 
-	if (gpio_is_valid(pinfo->esd_recovery.esd_gpio)) {
-		pr_info("%s: esd gpio : %d, irq : %d\n",
-				__func__,
-				pinfo->esd_recovery.esd_gpio,
-				gpio_to_irq(pinfo->esd_recovery.esd_gpio));
+	if (!pinfo->esd_check_enabled)
+		return;
+
+	vdd->esd_recovery.esd_gpio = of_get_named_gpio(np, "qcom,esd_irq_gpio", 0);
+
+	if (gpio_is_valid(vdd->esd_recovery.esd_gpio)) {
+		pr_info("%s:ndx(%d) esd gpio : %d, irq : %d\n",
+				__func__,ctrl->ndx,
+				vdd->esd_recovery.esd_gpio,
+				gpio_to_irq(vdd->esd_recovery.esd_gpio));
 	}
-/*
+
 	rc = of_property_read_string(np, "qcom,mdss-dsi-panel-status-check-mode", &data);
 	if (!rc) {
 		if (!strcmp(data, "reg_read_irq")) {
+
+			pr_info("%s: ESD_REG_IRQ set\n", __func__);
 			ctrl->status_mode = ESD_REG_IRQ;
 			ctrl->status_cmds_rlen = 0;
 			ctrl->check_read_status = mdss_dsi_esd_irq_status;
 		}
 	}
-*/
+
 	rc = of_property_read_string(np, "qcom,mdss-dsi-panel-status-irq-trigger", &data);
 	if (!rc) {
-		pinfo->esd_recovery.irqflags = IRQF_ONESHOT;
+		vdd->esd_recovery.irqflags = IRQF_ONESHOT;
 
-		if (!strcmp(data, "rasing"))
-			pinfo->esd_recovery.irqflags |= IRQF_TRIGGER_RISING;
+		pr_info("%s: mdss-dsi-panel-status-irq-trigger set\n", __func__);
+		if (!strcmp(data, "rising"))
+			vdd->esd_recovery.irqflags |= IRQF_TRIGGER_RISING;
 		else if (!strcmp(data, "falling"))
-			pinfo->esd_recovery.irqflags |= IRQF_TRIGGER_FALLING;
+			vdd->esd_recovery.irqflags |= IRQF_TRIGGER_FALLING;
 		else if (!strcmp(data, "high"))
-			pinfo->esd_recovery.irqflags |= IRQF_TRIGGER_HIGH;
+			vdd->esd_recovery.irqflags |= IRQF_TRIGGER_HIGH;
 		else if (!strcmp(data, "low"))
-			pinfo->esd_recovery.irqflags |= IRQF_TRIGGER_LOW;
+			vdd->esd_recovery.irqflags |= IRQF_TRIGGER_LOW;
 	}
 }
 
@@ -3617,6 +3806,30 @@ int config_cabc(int value)
 	return 0;
 }
 
+static ssize_t mipi_samsung_esd_check_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct msm_fb_data_type *mfd;
+	int rc;
+
+	struct samsung_display_driver_data *vdd = samsung_get_vdd();
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data vdd : 0x%zx\n", __func__, (size_t)vdd);
+		return 0;
+	}
+	pr_info("%s++  \n", __func__);
+
+	if (vdd->ctrl_dsi[DISPLAY_1]->panel_data.panel_info.esd_check_enabled){
+		rc = snprintf((char *)buf, 20, "esd_irq_handler %d\n", 0);
+		mfd = vdd->mfd_dsi[DISPLAY_1]; /*esd enabled only on dsi 0*/
+
+		esd_irq_handler(0, mfd);
+	}else
+		rc = snprintf((char *)buf, 20, "no esd_irq_handler %d\n", 0);
+
+	return rc;
+}
+
 static DEVICE_ATTR(lcd_type, S_IRUGO, mdss_samsung_disp_lcdtype_show, NULL);
 static DEVICE_ATTR(window_type, S_IRUGO, mdss_samsung_disp_windowtype_show, NULL);
 static DEVICE_ATTR(manufacture_date, S_IRUGO, mdss_samsung_disp_manufacture_date_show, NULL);
@@ -3632,6 +3845,7 @@ static DEVICE_ATTR(alpm_backlight, S_IRUGO | S_IWUSR | S_IWGRP, mdss_samsung_alp
 static DEVICE_ATTR(hmt_bright, S_IRUGO | S_IWUSR | S_IWGRP, mipi_samsung_hmt_bright_show, mipi_samsung_hmt_bright_store);
 static DEVICE_ATTR(hmt_on, S_IRUGO | S_IWUSR | S_IWGRP,	mipi_samsung_hmt_on_show, mipi_samsung_hmt_on_store);
 static DEVICE_ATTR(hmt_low_persistence, S_IRUGO | S_IWUSR | S_IWGRP, mipi_samsung_hmt_low_persistence_show, mipi_samsung_hmt_low_persistence_store);
+static DEVICE_ATTR(esd_check, /*S_IRUGO*/0664 , mipi_samsung_esd_check_show, NULL);
 
 static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_lcd_type.attr,
@@ -3649,6 +3863,7 @@ static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_hmt_bright.attr,
 	&dev_attr_hmt_on.attr,
 	&dev_attr_hmt_low_persistence.attr,
+	&dev_attr_esd_check.attr,
 	NULL
 };
 static const struct attribute_group panel_sysfs_group = {

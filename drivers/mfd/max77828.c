@@ -144,13 +144,13 @@ EXPORT_SYMBOL_GPL(max77828_update_reg);
 static int of_max77828_dt(struct device *dev, struct max77828_platform_data *pdata)
 {
 	struct device_node *np = dev->of_node;
-#ifdef CONFIG_VIBETONZ
+#ifdef CONFIG_SS_VIBRATOR
 	struct max77828_haptic_platform_data *haptic_data;
 #endif
 	if(!np)
 		return -EINVAL;
 
-#ifdef CONFIG_VIBETONZ
+#ifdef CONFIG_SS_VIBRATOR
 	haptic_data = kzalloc(sizeof(struct max77828_haptic_platform_data), GFP_KERNEL);
 	if (haptic_data == NULL)
 		return -ENOMEM;
@@ -160,7 +160,7 @@ static int of_max77828_dt(struct device *dev, struct max77828_platform_data *pda
 				0, &pdata->irq_gpio_flags);
 	pdata->wakeup = of_property_read_bool(np, "max77828,wakeup");
 	pr_info("%s: irq-gpio: %u \n", __func__, pdata->irq_gpio);
-#ifdef CONFIG_VIBETONZ
+#ifdef CONFIG_SS_VIBRATOR
 	if (!of_property_read_u32(np, "haptic,mode", &haptic_data->mode))
 		haptic_data->mode = 1;
 	if (!of_property_read_u32(np, "haptic,divisor", &haptic_data->divisor))

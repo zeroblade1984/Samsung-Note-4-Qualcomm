@@ -85,7 +85,7 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 		/*
 		*	Checking HBM mode first.
 		*/
-		if (mdnie_tune_state->vdd->auto_brightness == HBM_MODE)
+		if (mdnie_tune_state->vdd->auto_brightness >= HBM_MODE && mdnie_tune_state->vdd->bl_level == 255)
 			mdnie_tune_state->hbm_enable = true;
 		else
 			mdnie_tune_state->hbm_enable = false;

@@ -20,6 +20,11 @@
 #include <linux/device-mapper.h>
 #include <crypto/hash.h>
 
+#if defined(CONFIG_TZ_ICCC)
+#include <linux/security/iccc_interface.h>
+int dmv_check_failed;
+#endif
+
 #define DM_MSG_PREFIX			"verity"
 
 #define DM_VERITY_IO_VEC_INLINE		16
@@ -394,6 +399,12 @@ test_block_hash:
 				(unsigned long long)(io->block + b));
 			if (io->block != 0) {
 				v->hash_failed = 1;
+#if defined(CONFIG_TZ_ICCC)
+                	if (!dmv_check_failed) {
+                    		dmv_check_failed = 1;
+                    		Iccc_SaveData_Kernel(DMV_HASH, 0x1);
+                	}
+#endif
 				return -EIO;
 			}
 		}

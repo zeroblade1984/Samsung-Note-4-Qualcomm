@@ -63,6 +63,16 @@ static struct muic_cable support_cable_list[] = {
 #endif
 };
 
+#if defined(CONFIG_MUIC_SUPPORT_HMT_DETECTION)
+void muic_send_dock_intent(int type)
+{
+	pr_info("%s: MUIC dock type(%d)\n", __func__, type);
+#ifdef CONFIG_SWITCH
+	switch_set_state(&switch_dock, type);
+#endif
+}
+#endif
+
 static void muic_cable_event_worker(struct work_struct *work)
 {
 	struct muic_cable *cable =

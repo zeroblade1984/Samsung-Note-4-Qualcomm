@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014 TRUSTONIC LIMITED
+ * Copyright (c) 2013 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -10,6 +10,26 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
+ */
+/*
+ * Notifications inform the MobiCore runtime environment that information is
+ * pending in a WSM buffer.
+ *
+ * The Trustlet Connector (TLC) and the corresponding Trustlet also utilize
+ * this buffer to notify each other about new data within the
+ * Trustlet Connector Interface (TCI).
+ *
+ * The buffer is set up as a queue, which means that more than one
+ * notification can be written to the buffer before the switch to the other
+ * world is performed. Each side therefore facilitates an incoming and an
+ * outgoing queue for communication with the other side.
+ *
+ * Notifications hold the session ID, which is used to reference the
+ * communication partner in the other world.
+ * So if, e.g., the TLC in the normal world wants to notify his Trustlet
+ * about new data in the TLC buffer
+ *
+ * Notification queue declarations.
  */
 #ifndef _MCINQ_H_
 #define _MCINQ_H_

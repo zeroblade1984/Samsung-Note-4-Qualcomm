@@ -45,6 +45,7 @@ struct hdmi_hdcp_ctrl {
 	u32 auth_retries;
 	u32 tp_msgid;
 	u32 tz_hdcp;
+	bool cancel_requested;
 	enum hdmi_hdcp_state hdcp_state;
 	struct HDCP_V2V1_MSG_TOPOLOGY cached_tp;
 	struct HDCP_V2V1_MSG_TOPOLOGY current_tp;
@@ -62,6 +63,7 @@ int hdmi_hdcp_isr(void *ptr);
 int hdmi_hdcp_reauthenticate(void *input);
 int hdmi_hdcp_authenticate(void *hdcp_ctrl);
 void hdmi_hdcp_off(void *hdcp_ctrl);
+void hdmi_hdcp_cancel_auth(void *input, bool req);
 #if defined(CONFIG_SEC_MHL_AP_HDCP_PART1)
 int hdmi_hdcp_authentication_part1_start(struct hdmi_hdcp_ctrl *hdcp_ctrl);
 #endif

@@ -266,8 +266,8 @@
 						 <&det_zones 930 10000 10 0>,
 						 <&det_zones 2400 10000 10 1>,
 						 <&det_zones 9999 10000 10 1>;
-		but-zones-list = <&but_zones 0 0 165>,
-						 <&but_zones 1 166 335>,
+		but-zones-list = <&but_zones 0 0 155>,
+						 <&but_zones 1 156 335>,
 						 <&but_zones 2 336 680>;
 		mpp-channel-scaling = <4 1 3>;
 	};

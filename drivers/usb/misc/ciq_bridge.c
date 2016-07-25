@@ -396,7 +396,7 @@ static const struct file_operations ciq_fops = {
 
 static struct miscdevice ciq_dev = {
 	.minor = MISC_DYNAMIC_MINOR,
-	.name = "ciq_bridge",
+	.name = "smd4_bridge",
 	.fops = &ciq_fops,
 };
 

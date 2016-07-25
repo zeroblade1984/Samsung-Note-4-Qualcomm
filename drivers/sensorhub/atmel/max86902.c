@@ -2682,6 +2682,7 @@ static int max86900_hrm_eol_test_enable(struct max86900_device_data *data)
 	if (err != 0) {
 		pr_err("%s - error initializing MAX86900_SPO2_CONFIGURATION!\n",
 			__func__);
+		mutex_unlock(&data->activelock);
 		return -EIO;
 	}
 
@@ -3720,20 +3721,19 @@ static ssize_t max86900_hrm_flush_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	struct max86900_device_data *data = dev_get_drvdata(dev);
+	int ret = 0;
 	u8 handle = 0;
 
-	if (sysfs_streq(buf, "17")) /* ID_SAM_HRM */
-		handle = 17;
-	else if (sysfs_streq(buf, "18")) /* ID_AOSP_HRM */
-		handle = 18;
-	else if (sysfs_streq(buf, "19")) /* ID_HRM_RAW */
-		handle = 19;
-	else {
-		pr_info("%s: invalid value %d\n", __func__, *buf);
-		return -EINVAL;
+	ret = kstrtou8(buf, 10, &handle);
+	if (ret < 0) {
+		pr_err("%s - kstrtou8 failed.(%d)\n", __func__, ret);
+		return ret;
 	}
+	pr_info("%s - handle = %d\n", __func__, handle);
 
 	input_report_rel(data->hrm_input_dev, REL_MISC, handle);
+	input_sync(data->hrm_input_dev);
+
 	return size;
 }
 
@@ -3820,20 +3820,15 @@ static ssize_t max86900_hrmled_flush_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	struct max86900_device_data *data = dev_get_drvdata(dev);
+	int ret = 0;
 	u8 handle = 0;
 
-	if (sysfs_streq(buf, "19")) /* HRM LED IR */
-		handle = 19;
-	else if (sysfs_streq(buf, "20")) /* HRM LED RED */
-		handle = 20;
-	else if (sysfs_streq(buf, "21")) /* HRM LED GREEN */
-		handle = 21;
-	else if (sysfs_streq(buf, "22")) /* HRM LED VIOLET */
-		handle = 22;
-	else {
-		pr_info("%s: invalid value %d\n", __func__, *buf);
-		return -EINVAL;
+	ret = kstrtou8(buf, 10, &handle);
+	if (ret < 0) {
+		pr_err("%s - kstrtou8 failed.(%d)\n", __func__, ret);
+		return ret;
 	}
+	pr_info("%s - handle = %d\n", __func__, handle);
 
 	input_report_rel(data->hrmled_input_dev, REL_MISC, handle);
 	return size;
@@ -4012,6 +4007,7 @@ static ssize_t max86900_uv_flush_store(struct device *dev,
 	}
 
 	input_report_rel(data->uv_input_dev, REL_MISC, handle);
+	input_sync(data->uv_input_dev);
 	return size;
 }
 

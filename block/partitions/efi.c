@@ -393,7 +393,7 @@ static int is_gpt_valid(struct parsed_partitions *state, u64 lba,
  fail:
 	kfree(*gpt);
 	*gpt = NULL;
-	if (!force_gpt)
+	if (!force_gpt && !memcmp(state->pp_buf, " mmcblk0", 8))
 		BUG_ON(1);
 	return 0;
 }

@@ -269,6 +269,7 @@ struct mdss_dsi_ctrl_pdata {
 	int (*low_power_config) (struct mdss_panel_data *pdata, int enable);
 	int (*set_col_page_addr) (struct mdss_panel_data *pdata);
 	int (*check_status) (struct mdss_dsi_ctrl_pdata *pdata);
+	int (*check_read_status) (struct mdss_dsi_ctrl_pdata *pdata);
 	int (*registered) (struct mdss_panel_data *pdata);
 	int (*dimming_init) (struct mdss_panel_data *pdata);
 	int (*panel_blank) (struct mdss_panel_data *pdata, int blank);
@@ -329,6 +330,8 @@ struct mdss_dsi_ctrl_pdata {
 
 	struct dsi_panel_cmds on_cmds;
 	struct dsi_panel_cmds off_cmds;
+	struct dsi_panel_cmds status_cmds;
+	u32 status_cmds_rlen;
 
 	struct dcs_cmd_list cmdlist;
 	struct completion dma_comp;
@@ -347,6 +350,8 @@ struct mdss_dsi_ctrl_pdata {
 
 	struct dsi_buf tx_buf;
 	struct dsi_buf rx_buf;
+	struct dsi_buf status_buf;
+	int status_mode;
 
 	unsigned long dma_size;
 	dma_addr_t dma_addr;

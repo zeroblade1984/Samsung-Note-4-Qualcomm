@@ -1662,8 +1662,15 @@ static void disk_check_events(struct disk_events *ev,
 	unsigned long intv;
 	int nr_events = 0, i;
 
+#ifdef CONFIG_USB_STORAGE_DETECT
+	events = 0;
+	if (disk->interfaces != GENHD_IF_USB)
+		/* check events */
+		events = disk->fops->check_events(disk, clearing);
+#else
 	/* check events */
 	events = disk->fops->check_events(disk, clearing);
+#endif
 
 	/* accumulate pending events and schedule next poll if necessary */
 	spin_lock_irq(&ev->lock);
@@ -1689,6 +1696,9 @@ static void disk_check_events(struct disk_events *ev,
 
 #ifdef CONFIG_USB_STORAGE_DETECT
 	if (nr_events && disk->interfaces != GENHD_IF_USB)
+		kobject_uevent_env(&disk_to_dev(disk)->kobj, KOBJ_CHANGE, envp);
+#else
+	if (nr_events)
 		kobject_uevent_env(&disk_to_dev(disk)->kobj, KOBJ_CHANGE, envp);
 #endif
 }

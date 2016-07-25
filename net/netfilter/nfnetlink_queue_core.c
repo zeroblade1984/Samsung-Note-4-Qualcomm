@@ -41,9 +41,6 @@
 
 #define NFQNL_QMAX_DEFAULT 1024
 
-#ifdef CONFIG_SEC_NET_FILTER
-int sec_url_filter_slow(struct nf_queue_entry *entry, unsigned int queuenum);
-#endif
 struct nfqnl_instance {
 	struct hlist_node hlist;		/* global list of queues */
 	struct rcu_head rcu;
@@ -620,11 +617,8 @@ __nfqnl_enqueue_packet_gso(struct net *net, struct nfqnl_instance *queue,
 	}
 	return ret;
 }
-#ifdef CONFIG_SEC_NET_FILTER
-int nfqnl_enqueue_packet(struct nf_queue_entry *entry, unsigned int queuenum)
-#else
+
 static int nfqnl_enqueue_packet(struct nf_queue_entry *entry, unsigned int queuenum)
-#endif
 {
 	unsigned int queued;
 	struct nfqnl_instance *queue;
@@ -633,13 +627,8 @@ static int nfqnl_enqueue_packet(struct nf_queue_entry *entry, unsigned int queue
 	struct net *net = dev_net(entry->indev ?
 				  entry->indev : entry->outdev);
 	struct nfnl_queue_net *q = nfnl_queue_pernet(net);
-#ifdef	CONFIG_SEC_NET_FILTER
-	if (queuenum == 5001)
-        {
-           return sec_url_filter_slow(entry, queuenum);
-        }
-#endif
-	/* rcu_read_lock()ed by nf_hook_slow() */
+
+ 	/* rcu_read_lock()ed by nf_hook_slow() */
 	queue = instance_lookup(q, queuenum);
 	if (!queue)
 		return -ESRCH;
@@ -1344,9 +1333,6 @@ static void __exit nfnetlink_queue_fini(void)
 
 	rcu_barrier(); /* Wait for completion of call_rcu()'s */
 }
-#ifdef	CONFIG_SEC_NET_FILTER
-EXPORT_SYMBOL(nfqnl_enqueue_packet);
-#endif
 
 MODULE_DESCRIPTION("netfilter packet queue handler");
 MODULE_AUTHOR("Harald Welte <laforge@netfilter.org>");

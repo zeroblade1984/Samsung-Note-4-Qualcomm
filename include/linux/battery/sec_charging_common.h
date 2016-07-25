@@ -430,10 +430,10 @@ struct sec_battery_platform_data {
 	unsigned int event_waiting_time;
 
 	/* battery swelling */
-	unsigned int swelling_high_temp_block;
-	unsigned int swelling_high_temp_recov;
-	unsigned int swelling_low_temp_blck;
-	unsigned int swelling_low_temp_recov;
+	int swelling_high_temp_block;
+	int swelling_high_temp_recov;
+	int swelling_low_temp_block;
+	int swelling_low_temp_recov;
 	unsigned int swelling_normal_float_voltage;
 	unsigned int swelling_drop_float_voltage;
 	unsigned int swelling_rechg_voltage;

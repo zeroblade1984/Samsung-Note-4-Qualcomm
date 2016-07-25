@@ -767,13 +767,13 @@ static irqreturn_t cypress_touchkey_interrupt(int irq, void *dev_id)
 
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 		dev_info(&info->client->dev,
-				"%s: %s%s%X, fw_ver: 0x%x, modue_ver: 0x%x\n", __func__,
+				"%s: %s%s%X, fw_ver: 0x%x, module_ver: 0x%x\n", __func__,
 				menu_data ? (menu_press ? "menu P " : "menu R ") : "",
 				back_data ? (back_press ? "back P " : "back R ") : "",
 				buf[0], info->ic_fw_ver, info->module_ver);
 #else
 		dev_info(&info->client->dev,
-				"%s: key %s%s fw_ver: 0x%x, modue_ver: 0x%x\n", __func__,
+				"%s: key %s%s fw_ver: 0x%x, module_ver: 0x%x\n", __func__,
 				menu_data ? (menu_press ? "P" : "R") : "",
 				back_data ? (back_press ? "P" : "R") : "",
 				info->ic_fw_ver, info->module_ver);

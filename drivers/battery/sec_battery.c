@@ -3018,7 +3018,8 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case STORE_MODE:
 		if (sscanf(buf, "%d\n", &x) == 1) {
-			battery->store_mode = x ? true : false;
+		        if (x)
+			        battery->store_mode = true;
 			ret = count;
 		}
 		break;

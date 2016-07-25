@@ -1,7 +1,7 @@
 /*
  * Linux DHD Bus Module for PCIE
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_pcie.h 572584 2015-07-20 08:54:22Z $
+ * $Id: dhd_pcie.h 607278 2015-12-18 11:05:38Z $
  */
 
 
@@ -181,7 +181,7 @@ typedef struct dhd_bus {
 #ifdef SUPPORT_LINKDOWN_RECOVERY
 #ifdef CONFIG_ARCH_MSM
 	struct msm_pcie_register_event pcie_event;
-	bool islinkdown;
+	bool no_cfg_restore;
 #endif /* CONFIG_ARCH_MSM */
 #endif /* SUPPORT_LINKDOWN_RECOVERY */
 #ifdef DHD_USE_IDLECOUNT
@@ -198,6 +198,7 @@ typedef struct dhd_bus {
 	uint32 d0_inform_cnt;
 	uint32 d0_inform_in_use_cnt;
 	uint8 force_suspend;
+	uint32 d3_ack_war_cnt;
 } dhd_bus_t;
 
 /* function declarations */
@@ -236,10 +237,12 @@ extern void dhdpcie_oob_intr_set(dhd_bus_t *bus, bool enable);
 #ifdef USE_EXYNOS_PCIE_RC_PMPATCH
 #if defined(CONFIG_MACH_UNIVERSAL7420)
 #define EXYNOS_PCIE_CH_NUM	1
+#define EXYNOS_PCIE_DEVICE_ID	0xa575
 extern int exynos_pcie_pm_suspend(int ch_num);
 extern int exynos_pcie_pm_resume(int ch_num);
 #elif defined(CONFIG_MACH_UNIVERSAL5433)
 #define	EXYNOS_PCIE_CH_NUM
+#define EXYNOS_PCIE_DEVICE_ID	0xa5e3
 extern void exynos_pcie_pm_suspend(void);
 extern void exynos_pcie_pm_resume(void);
 #else

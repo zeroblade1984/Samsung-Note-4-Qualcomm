@@ -1306,9 +1306,11 @@ static int hdmi_tx_init_panel_info(struct hdmi_tx_ctrl *hdmi_ctrl)
 	pinfo->lcdc.h_back_porch = timing->back_porch_h;
 	pinfo->lcdc.h_front_porch = timing->front_porch_h;
 	pinfo->lcdc.h_pulse_width = timing->pulse_width_h;
+	pinfo->lcdc.h_polarity = timing->active_low_h;
 	pinfo->lcdc.v_back_porch = timing->back_porch_v;
 	pinfo->lcdc.v_front_porch = timing->front_porch_v;
 	pinfo->lcdc.v_pulse_width = timing->pulse_width_v;
+	pinfo->lcdc.v_polarity = timing->active_low_v;
 
 	pinfo->type = DTV_PANEL;
 	pinfo->pdest = DISPLAY_2;
@@ -3148,6 +3150,12 @@ static irqreturn_t hdmi_tx_isr(int irq, void *data)
 		hdmi_ctrl->hpd_state =
 			(DSS_REG_R(io, HDMI_HPD_INT_STATUS) & BIT(1)) >> 1;
 		spin_unlock_irqrestore(&hdmi_ctrl->hpd_state_lock, flags);
+
+		if (hdmi_tx_is_hdcp_enabled(hdmi_ctrl)) {
+			hdmi_hdcp_cancel_auth(
+				hdmi_ctrl->feature_data[HDMI_TX_FEAT_HDCP],
+				!hdmi_ctrl->hpd_state);
+		}
 
 #if defined(CONFIG_SEC_MHL_SUPPORT)
 		if (hdmi_ctrl->hpd_state == 1) {

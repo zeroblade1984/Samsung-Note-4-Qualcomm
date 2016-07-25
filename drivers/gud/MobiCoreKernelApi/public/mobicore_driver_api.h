@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014 TRUSTONIC LIMITED
+ * Copyright (c) 2013 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -10,6 +10,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
+ */
+/*
+ * MobiCore Driver API.
+ *
+ * The MobiCore (MC) Driver API provides access functions to the MobiCore
+ * runtime environment and the contained Trustlets.
  */
 #ifndef _MOBICORE_DRIVER_API_H_
 #define _MOBICORE_DRIVER_API_H_
@@ -100,7 +106,7 @@ struct mc_session_handle {
 struct mc_bulk_map {
 	/* The virtual address of the Bulk buffer regarding the address space
 	 * of the Trustlet, already includes a possible offset! */
-	void *secure_virt_addr;
+	uint32_t secure_virt_addr;
 	uint32_t secure_virt_len;	/* Length of the mapped Bulk buffer */
 };
 
@@ -368,39 +374,6 @@ __MC_CLIENT_LIB_API enum mc_result mc_map(
 __MC_CLIENT_LIB_API enum mc_result mc_unmap(
 	struct mc_session_handle *session, void *buf,
 	struct mc_bulk_map *map_info);
-
-/**
- * mc_driver_ctrl() - Execute driver specific command.
- * @param:		Command ID of the command to be executed
- * @data:		Command data and response depending on command
- * @len:		Length of the data block
- *
- * Can be used to execute driver specific commands. Besides the control command
- * MC_CTRL_GET_VERSION commands are implementation specific.
- *
- * Please refer to the corresponding specification of the driver manufacturer.
- *
- * Return codes:
- *	MC_DRV_ERR_NOT_IMPLEMENTED.
- */
-__MC_CLIENT_LIB_API enum mc_result mc_driver_ctrl(
-	enum mc_driver_ctrl param, uint8_t *data, uint32_t len);
-
-/**
- * mc_manage() - Execute application management command.
- * @device_id:		Identifier for the MobiCore device to be used.
- *			NULL refers to the default device.
- * @data:		Command data/response data depending on command
- * @len:		Length of the data block
- *
- * Shall be used to exchange application management commands with the MobiCore.
- * The MobiCore Application Management Protocol is described in [MCAMP].
- *
- * Return codes:
- *	MC_DRV_ERR_NOT_IMPLEMENTED.
- */
-__MC_CLIENT_LIB_API enum mc_result mc_manage(
-	uint32_t device_id, uint8_t *data, uint32_t len);
 
 /**
  * mc_get_session_error_code() - Get additional error information of the last

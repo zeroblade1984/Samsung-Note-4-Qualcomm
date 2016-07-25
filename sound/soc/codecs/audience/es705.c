@@ -228,13 +228,30 @@ static int cnt_restore_std_fw_in_vs = 0;
 int restore_std_fw(struct es705_priv *es705)
 {
 	int rc;
+	const char *fw_filename = "audience-es705-fw.bin";
+	
 	dev_info(es705->dev, "%s(): START!\n", __func__);
+
+	if (!es705->fw_requested) {
+		rc = request_firmware((const struct firmware **)&es705->standard,
+					  fw_filename, es705->dev);
+		if (rc) {
+			dev_err(es705->dev,
+				"%s(): request_firmware(%s) failed %d\n", __func__,
+				fw_filename, rc);
+			goto request_firmware_error;
+		} else {
+			es705->fw_requested = 1;
+		}
+	}
 
 	es705->mode = SBL;
 	es705_gpio_reset(es705);
 	rc = es705_bootup(es705);
 
 	dev_info(es705->dev, "%s(): rc = %d\n", __func__, rc);
+
+request_firmware_error:
 	return rc;
 }
 #endif
@@ -1656,6 +1673,9 @@ static int es705_vs_load(struct es705_priv *es705)
                    mutex_unlock(&es705->pm_mutex);
                    es705->es705_power_state = ES705_SET_POWER_STATE_NORMAL;
                    rc = restore_std_fw(es705);
+		   if (rc)
+		   	goto es705_vs_load_fail;
+
                    rc = es705_cmd(es705, cmd);
                    msleep(100);
                    es705->es705_power_state = ES705_SET_POWER_STATE_VS_OVERLAY;
@@ -1695,9 +1715,13 @@ int fw_download(void *arg)
 	struct es705_priv *priv = (struct es705_priv *)arg;
 	int rc;
 
-	dev_info(priv->dev, "%s(): fw download\n", __func__);
-	rc = es705_bootup(priv);
-	dev_info(priv->dev, "%s(): bootup rc=%d\n", __func__, rc);
+	if (priv->fw_requested) {
+		dev_info(priv->dev, "%s(): fw download\n", __func__);
+		rc = es705_bootup(priv);
+		dev_info(priv->dev, "%s(): bootup rc=%d\n", __func__, rc);
+	} else {
+		dev_err(priv->dev, "%s(): unable to locate firmware file\n", __func__);
+	}
 
 	rc = register_snd_soc(priv);
 	dev_info(priv->dev, "%s(): register_snd_soc rc=%d\n", __func__, rc);
@@ -1741,6 +1765,8 @@ static int es705_sleep(struct es705_priv *es705)
 	if (rc) {
 		mutex_unlock(&es705->pm_mutex);	
 		rc = restore_std_fw(es705);
+		if (rc)
+			goto es705_sleep_exit;
 		cnt_restore_std_fw_in_sleep++;
 		mutex_lock(&es705->pm_mutex);
 	}
@@ -1946,6 +1972,8 @@ RETRY_TO_WAKEUP:
 	if (rc) {
 		mutex_unlock(&es705->pm_mutex); 
 		rc = restore_std_fw(es705);
+		if (rc)
+			goto es705_wakeup_exit;
 		cnt_restore_std_fw_in_wakeup++;
 		mutex_lock(&es705->pm_mutex);
 	}

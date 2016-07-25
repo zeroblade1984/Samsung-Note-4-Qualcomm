@@ -4409,6 +4409,7 @@
 			interrupts = <0 131 0>, <0 179 0>;
 			interrupt-names = "irq", "otg_irq";
 			tx-fifo-resize;
+			snps,usb3-u1u2-disable;
 			usb-phy = <&hsphy0>, <&ssphy0>;
 		};
 	};
@@ -4769,7 +4770,7 @@
 		reg = <0xf9017000 0x1000>;
 		qcom,memblock-reserve = <0x0 0x4000>; /*reserved 16kb for WA for Secure Storage TZ app */
 		interrupts = <0 3 0>, <0 4 0>;
-		qcom,bark-time = <11000>;
+		qcom,bark-time = <15000>;
 		qcom,pet-time = <10000>;
 		qcom,ipi-ping;
 	};

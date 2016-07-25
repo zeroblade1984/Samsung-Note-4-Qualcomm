@@ -483,13 +483,13 @@ static void clk_ctrl_work(struct work_struct *work)
 
 	ctl = ctx->ctl;
 
-	if (ctl->panel_data->panel_info.split_display) {
+	if (ctl->panel_data->panel_info.is_split_display) {
 		mutex_lock(&cmd_clk_mtx);
 
 		sctl = mdss_mdp_get_split_ctl(ctl);
-		if (sctl)
+		if (sctl) {
 			sctx = (struct mdss_mdp_cmd_ctx *) sctl->priv_data;
-		else {
+		} else {
 			/* slave ctl, let master ctl do clk control */
 			mutex_unlock(&cmd_clk_mtx);
 			return;
@@ -497,9 +497,8 @@ static void clk_ctrl_work(struct work_struct *work)
 	}
 
 	mdss_mdp_cmd_clk_off(ctx);
-
-	if (ctl->panel_data->panel_info.split_display) {
-		if(sctx)
+	if (ctl->panel_data->panel_info.is_split_display) {
+		if (sctx)
 			mdss_mdp_cmd_clk_off(sctx);
 		mutex_unlock(&cmd_clk_mtx);
 	}
@@ -543,14 +542,14 @@ static int mdss_mdp_cmd_add_vsync_handler(struct mdss_mdp_ctl *ctl,
 	spin_unlock_irqrestore(&ctx->clk_lock, flags);
 
 	if (enable_rdptr) {
-		if (ctl->panel_data->panel_info.split_display)
+		if (ctl->panel_data->panel_info.is_split_display)
 			mutex_lock(&cmd_clk_mtx);
 
  		mdss_mdp_cmd_clk_on(ctx);
 		if (sctx)
 			mdss_mdp_cmd_clk_on(sctx);
 
-		if (ctl->panel_data->panel_info.split_display)
+		if (ctl->panel_data->panel_info.is_split_display)
 			mutex_unlock(&cmd_clk_mtx);
 	}
 

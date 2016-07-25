@@ -478,7 +478,7 @@ void board_battery_init(struct platform_device *pdev, struct sec_battery_info *b
 #if defined(CONFIG_BATTERY_SWELLING)
 	battery->pdata->swelling_high_temp_block = BATT_SWELLING_HIGH_TEMP_BLOCK;
 	battery->pdata->swelling_high_temp_recov = BATT_SWELLING_HIGH_TEMP_RECOV;
-	battery->pdata->swelling_low_temp_blck = BATT_SWELLING_LOW_TEMP_BLOCK;
+	battery->pdata->swelling_low_temp_block = BATT_SWELLING_LOW_TEMP_BLOCK;
 	battery->pdata->swelling_low_temp_recov = BATT_SWELLING_LOW_TEMP_RECOV;
 	battery->pdata->swelling_drop_float_voltage = BATT_SWELLING_DROP_FLOAT_VOLTAGE;
 	battery->pdata->swelling_rechg_voltage = BATT_SWELLING_RECHG_VOLTAGE;

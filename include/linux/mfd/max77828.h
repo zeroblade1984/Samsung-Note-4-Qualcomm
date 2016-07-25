@@ -82,7 +82,7 @@ struct max77828_charger_platform_data {
 #endif
 };
 
-#ifdef CONFIG_VIBETONZ
+#ifdef CONFIG_SS_VIBRATOR
 #define DIVIDER_32			(0x00)
 #define DIVIDER_64			(0x01)
 #define DIVIDER_128		(DIVIDER_64<<1)
@@ -119,7 +119,7 @@ struct max77828_platform_data {
 	struct max77828_muic_data *muic_data;
 	struct max77828_regulator_data *regulators;
 	int num_regulators;
-#ifdef CONFIG_VIBETONZ
+#ifdef CONFIG_SS_VIBRATOR
 	/* haptic motor data */
 	struct max77828_haptic_platform_data *haptic_data;
 #endif

@@ -170,13 +170,10 @@ obj-$(CONFIG_SENSORS)		+= sensors/
 obj-$(CONFIG_SENSORS_SSC)	+= sensors/
 obj-$(CONFIG_SENSORS_SSP)	+= sensorhub/
 #motor
-obj-$(CONFIG_VIBETONZ)		+= motor/
-obj-$(CONFIG_MOTOR_DRV_MAX77828)	+= motor/
+obj-y				+= motor/
 
 obj-$(CONFIG_BATTERY_SAMSUNG)	+= battery/
 
 obj-$(CONFIG_SENSORS_FINGERPRINT)	+= fingerprint/
 
 obj-$(CONFIG_IRLED_GPIO)	+= irled/
-# SecFilter Driver
-obj-$(CONFIG_SEC_NET_FILTER)	+= secfilter/

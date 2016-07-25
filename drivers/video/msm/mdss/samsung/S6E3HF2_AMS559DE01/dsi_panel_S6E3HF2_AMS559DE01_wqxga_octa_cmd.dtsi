@@ -144,6 +144,12 @@
 		qcom,mdss-dsi-rx-eot-ignore;
 		qcom,mdss-dsi-tx-eot-append;
 
+		qcom,esd-check-enabled;
+		qcom,mdss-dsi-panel-status-check-mode ="reg_read_irq";
+		qcom,mdss-dsi-panel-status-value=<1>;
+		qcom,mdss-dsi-panel-status-irq-trigger = "falling";
+		qcom,esd_irq_gpio  = <&pma8084_gpios 13 0x1>;
+
 		/*qcom,ulps-enabled*/
 		/*qcom,panel-roi-alignment=<8 8 1 1 1 2>;*/
 		/*qcom,esd-check-enabled*/
