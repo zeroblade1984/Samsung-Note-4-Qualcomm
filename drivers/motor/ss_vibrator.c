@@ -355,8 +355,7 @@ static DEVICE_ATTR(vib_tuning, 0660, show_vib_tuning, store_vib_tuning);
 static ssize_t intensity_store(struct device *dev,
 		struct device_attribute *devattr, const char *buf, size_t count)
 {
-	struct timed_output_dev *t_dev = dev_get_drvdata(dev);
-	struct ss_vib *vib = container_of(t_dev, struct ss_vib, timed_dev); 
+	struct ss_vib *vib = dev_get_drvdata(dev);
 	int ret = 0, set_intensity = 0; 
 
 	ret = kstrtoint(buf, 0, &set_intensity);
@@ -375,8 +374,7 @@ static ssize_t intensity_store(struct device *dev,
 static ssize_t intensity_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct timed_output_dev *t_dev = dev_get_drvdata(dev);
-	struct ss_vib *vib = container_of(t_dev, struct ss_vib, timed_dev); 
+	struct ss_vib *vib = dev_get_drvdata(dev);
 
 	return sprintf(buf, "intensity: %u\n", vib->intensity);
 }
